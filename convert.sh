@@ -161,6 +161,9 @@ echo "RGB images copied: $COPIED_RGB successful, $FAILED_RGB failed"
 echo "Output files are in: $OUTPUT_DIR"
 echo ""
 echo "=============================="
+echo "☕️ Like this tool? Support the project!"
+echo "   Scan bmc_qr.png or visit: https://www.buymeacoffee.com/rjpgtiff"
+echo ""
 
 # Show completion dialog
 osascript -e "display alert \"DJI Thermal Converter\" message \"Processing complete!\\n\\nThermal images converted: $SUCCESSFUL successful, $FAILED failed\\nRGB images copied: $COPIED_RGB successful, $FAILED_RGB failed\\n\\nOutput files are in the 'output' folder.\""
