@@ -11,11 +11,15 @@ A simple offline tool for converting DJI thermal images to radiometric TIFF form
    - **Linux**: Make executable with `chmod +x convert.sh` then run `./convert.sh`
 3. Find your converted `.tiff` files and copied RGB images in the `output` folder
 
-## Supported Formats
+## Supported DJI Products
 
-- **Thermal images**: Files ending with `_T.JPG`, `_R.JPG`, `_IR.JPG`, `_THERMAL.JPG`, etc.
-- **RGB images**: All other `.JPG`/`.JPEG` files
-- **DJI camera specific**: `_H20T.JPG`, `_M30T.JPG`, etc.
+This tool supports R-JPEG thermal images from the following DJI products (based on DJI Thermal SDK v1.7):
+
+- **Zenmuse H20T**
+- **Zenmuse H20N**
+- **Zenmuse XT S**
+- **Mavic 2 Enterprise Advanced (M2EA)**
+- **M30T**
 
 ## Requirements
 
