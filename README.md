@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # DJI Thermal Image Converter
 
 A simple offline tool for converting DJI thermal images to radiometric TIFF format while preserving RGB images and folder structure.
@@ -58,3 +59,7 @@ If double-click doesn't work, open terminal and run:
 cd /path/to/thermal_converter
 bash convert.sh
 ```
+=======
+# thermal-converter-api
+DJI Thermal Image Converter - API for converting R-JPG      thermal images to radiometric TIFF format
+>>>>>>> f5dd50d8c2df8fe350d0d9f44f6602ae6c07f1da
