@@ -61,4 +61,4 @@ If double-click doesn't work, open terminal and run:
 ```bash
 cd /path/to/thermal_converter
 bash convert.sh
-```
+```# Test line
