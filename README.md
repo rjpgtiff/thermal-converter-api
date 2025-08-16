@@ -1,6 +1,6 @@
 # DJI Thermal Image Converter
 
-A simple offline tool for converting DJI thermal images to radiometric TIFF format while preserving RGB images and folder structure.
+A simple tool for converting DJI thermal images to radiometric TIFF format while preserving RGB images and folder structure through the rjpg2tiff API service.
 
 ## How to Use
 
