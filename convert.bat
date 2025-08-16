@@ -6,7 +6,8 @@ echo ==============================
 echo.
 echo Converting thermal images...
 echo.
-bash "%~dp0convert.sh"
+cd /d "%~dp0"
+bash "convert.sh"
 echo.
 echo Press any key to exit...
 pause >nul
