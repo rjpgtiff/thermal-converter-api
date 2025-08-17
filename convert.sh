@@ -8,7 +8,14 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INPUT_DIR="$SCRIPT_DIR/input"
 OUTPUT_DIR="$SCRIPT_DIR/output"
-API_URL="https://rjpg2tiff.xyz"
+# Check if backend is running locally, otherwise use production
+if curl -s -f "http://localhost:8000/health" > /dev/null 2>&1; then
+    API_URL="http://localhost:8000"
+    echo "Using local backend at $API_URL"
+else
+    API_URL="https://www.rjpg2tiff.xyz"
+    echo "Using production backend at $API_URL"
+fi
 
 # Clear screen and show header with ASCII art
 clear
@@ -73,84 +80,114 @@ if [ ${#THERMAL_IMAGES[@]} -eq 0 ] && [ ${#RGB_IMAGES[@]} -eq 0 ]; then
     exit 1
 fi
 
-# Process all images with continuously updating counter
+# Process all images
 echo "Processing all images..."
 SUCCESSFUL=0
 FAILED=0
 COPIED_RGB=0
 FAILED_RGB=0
 TOTAL_IMAGES=$((${#THERMAL_IMAGES[@]} + ${#RGB_IMAGES[@]}))
-PROCESSED=0
 
-# Show initial progress on same line
-printf "%d/%d" 0 $TOTAL_IMAGES
-
-# Process thermal images
-for i in "${!THERMAL_IMAGES[@]}"; do
-    IMAGE_PATH="${THERMAL_IMAGES[$i]}"
+# Process thermal images in batch
+if [ ${#THERMAL_IMAGES[@]} -gt 0 ]; then
+    echo "Sending ${#THERMAL_IMAGES[@]} files to $API_URL/api/convert-batch"
     
-    # Calculate relative path to preserve folder structure
-    RELATIVE_PATH="${IMAGE_PATH#$INPUT_DIR/}"
-    OUTPUT_PATH="$OUTPUT_DIR/${RELATIVE_PATH%.*}.tiff"
-    OUTPUT_DIR_FOR_FILE=$(dirname "$OUTPUT_PATH")
-    
-    # Create output directory
-    mkdir -p "$OUTPUT_DIR_FOR_FILE" 2>/dev/null
-    
-    # Convert using curl (completely silent)
-    if curl -s -S --fail \
-        --data-binary "@$IMAGE_PATH" \
-        -H "Content-Type: image/jpeg" \
-        -o "$OUTPUT_PATH" \
-        "$API_URL/api/convert" 2>/dev/null; then
+    # Prepare form data for curl - using indexed field names and relative paths
+    CURL_FORM_DATA=()
+    for i in "${!THERMAL_IMAGES[@]}"; do
+        IMAGE_PATH="${THERMAL_IMAGES[$i]}"
+        # Calculate relative path to preserve folder structure
+        RELATIVE_PATH="${IMAGE_PATH#$INPUT_DIR/}"
         
-        if [ -f "$OUTPUT_PATH" ] && [ -s "$OUTPUT_PATH" ]; then
-            ((SUCCESSFUL++))
+        # Use indexed field names and send relative path for each file
+        CURL_FORM_DATA+=(--form "file${i}=@$IMAGE_PATH")
+        CURL_FORM_DATA+=(--form "relativePath${i}=$RELATIVE_PATH")
+    done
+    
+    # Create a temporary directory for batch processing
+    TEMP_DIR=$(mktemp -d)
+    BATCH_OUTPUT="$TEMP_DIR/batch_output.zip"
+    
+    # Convert using curl batch endpoint with timeout to prevent hanging
+    echo "Converting thermal images in batch..."
+    
+    # Start timer
+    START_TIME=$(date +%s)
+    
+    # Save curl output for debugging
+    CURL_OUTPUT=$(mktemp)
+    
+    # Run curl in background and show progress messages
+    curl -s -S --fail --max-time 300 \
+        "${CURL_FORM_DATA[@]}" \
+        -o "$BATCH_OUTPUT" \
+        "$API_URL/api/convert-batch" 2>"$CURL_OUTPUT" &
+    
+    CURL_PID=$!
+    
+    # Show progress messages while waiting
+    MESSAGES=("Our servers are working hard..." "Processing thermal data..." "Almost there..." "Just a bit more...")
+    MSG_INDEX=0
+    
+    while kill -0 $CURL_PID 2>/dev/null; do
+        echo "${MESSAGES[$MSG_INDEX]}"
+        MSG_INDEX=$(( (MSG_INDEX + 1) % ${#MESSAGES[@]} ))
+        sleep 5
+    done
+    
+    # Wait for curl to complete
+    wait $CURL_PID
+    CURL_EXIT_CODE=$?
+    
+    # Calculate elapsed time
+    END_TIME=$(date +%s)
+    ELAPSED_TIME=$((END_TIME - START_TIME))
+    
+    # Check if curl succeeded
+    if [ $CURL_EXIT_CODE -eq 0 ] && [ -f "$BATCH_OUTPUT" ] && [ -s "$BATCH_OUTPUT" ]; then
+        # Extract the zip file to output directory
+        mkdir -p "$OUTPUT_DIR"
+        unzip -q "$BATCH_OUTPUT" -d "$OUTPUT_DIR" 2>/dev/null
+        SUCCESSFUL=${#THERMAL_IMAGES[@]}
+        echo "✅ Batch conversion completed in $(($ELAPSED_TIME / 60))m $(($ELAPSED_TIME % 60))s"
+    else
+        FAILED=${#THERMAL_IMAGES[@]}
+        echo "❌ Batch conversion failed after $(($ELAPSED_TIME / 60))m $(($ELAPSED_TIME % 60))s"
+        echo "Curl error: $(cat "$CURL_OUTPUT")"
+    fi
+    
+    # Clean up temp file
+    rm -f "$CURL_OUTPUT"
+    
+    # Clean up temporary files
+    rm -f "$BATCH_OUTPUT" 2>/dev/null
+    rmdir "$TEMP_DIR" 2>/dev/null
+fi
+
+# Process RGB images (copy them individually)
+if [ ${#RGB_IMAGES[@]} -gt 0 ]; then
+    echo "Copying RGB images..."
+    for i in "${!RGB_IMAGES[@]}"; do
+        IMAGE_PATH="${RGB_IMAGES[$i]}"
+        
+        # Calculate relative path to preserve folder structure
+        RELATIVE_PATH="${IMAGE_PATH#$INPUT_DIR/}"
+        OUTPUT_PATH="$OUTPUT_DIR/$RELATIVE_PATH"
+        OUTPUT_DIR_FOR_FILE=$(dirname "$OUTPUT_PATH")
+        
+        # Create output directory
+        mkdir -p "$OUTPUT_DIR_FOR_FILE" 2>/dev/null
+        
+        # Copy the file (completely silent)
+        if cp "$IMAGE_PATH" "$OUTPUT_PATH" 2>/dev/null; then
+            ((COPIED_RGB++))
         else
-            rm -f "$OUTPUT_PATH" 2>/dev/null
-            ((FAILED++))
+            ((FAILED_RGB++))
         fi
-    else
-        rm -f "$OUTPUT_PATH" 2>/dev/null
-        ((FAILED++))
-    fi
-    
-    ((PROCESSED++))
-    
-    # Update progress display continuously on same line
-    printf "\r%d/%d" $PROCESSED $TOTAL_IMAGES
-    
-    # Small delay to be nice to the API
-    sleep 1
-done
+    done
+fi
 
-# Process RGB images
-for i in "${!RGB_IMAGES[@]}"; do
-    IMAGE_PATH="${RGB_IMAGES[$i]}"
-    
-    # Calculate relative path to preserve folder structure
-    RELATIVE_PATH="${IMAGE_PATH#$INPUT_DIR/}"
-    OUTPUT_PATH="$OUTPUT_DIR/$RELATIVE_PATH"
-    OUTPUT_DIR_FOR_FILE=$(dirname "$OUTPUT_PATH")
-    
-    # Create output directory
-    mkdir -p "$OUTPUT_DIR_FOR_FILE" 2>/dev/null
-    
-    # Copy the file (completely silent)
-    if cp "$IMAGE_PATH" "$OUTPUT_PATH" 2>/dev/null; then
-        ((COPIED_RGB++))
-    else
-        ((FAILED_RGB++))
-    fi
-    
-    ((PROCESSED++))
-    
-    # Update progress display continuously on same line
-    printf "\r%d/%d" $PROCESSED $TOTAL_IMAGES
-done
-
-# Finish progress and show results
-printf "\r%d/%d - Complete!              \n" $TOTAL_IMAGES $TOTAL_IMAGES
+# Show results
 echo ""
 echo "=============================="
 echo "✅ Processing complete!"
