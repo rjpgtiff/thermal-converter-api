@@ -23,7 +23,6 @@ echo ""
 if [ -z "$(ls -A "$INPUT_DIR")" ]; then
     echo "! No files found in input folder!"
     echo "! Please drop thermal images or folders into the 'input' folder and run again."
-    osascript -e 'display alert "DJI Thermal Converter" message "No files found in input folder! Please drop thermal images or folders into the \"input\" folder and run again."'
     exit 1
 fi
 
@@ -71,7 +70,6 @@ echo ""
 if [ ${#THERMAL_IMAGES[@]} -eq 0 ] && [ ${#RGB_IMAGES[@]} -eq 0 ]; then
     echo "! No images found!"
     echo "! Please drop thermal or RGB images into the 'input' folder."
-    osascript -e 'display alert "DJI Thermal Converter" message "No images found! Please drop thermal or RGB images into the \"input\" folder."'
     exit 1
 fi
 
@@ -164,9 +162,3 @@ echo "=============================="
 echo "☕️ Like this tool? Support the project!"
 echo "   Scan bmc_qr.png or visit: https://www.buymeacoffee.com/rjpgtiff"
 echo ""
-
-# Show completion dialog
-osascript -e "display alert \"DJI Thermal Converter\" message \"Processing complete!\\n\\nThermal images converted: $SUCCESSFUL successful, $FAILED failed\\nRGB images copied: $COPIED_RGB successful, $FAILED_RGB failed\\n\\nOutput files are in the 'output' folder.\""
-
-# Open output folder
-open "$OUTPUT_DIR" 2>/dev/null

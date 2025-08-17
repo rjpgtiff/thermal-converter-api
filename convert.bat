@@ -8,6 +8,3 @@ echo Converting thermal images...
 echo.
 cd /d "%~dp0"
 bash "convert.sh"
-echo.
-echo Press any key to exit...
-pause >nul
