@@ -1,6 +1,8 @@
-# Input and output folders - personal data, don't track
-input/
-output/
+# Input and output folders - exclude contents but keep folder structure
+input/*
+!input/.gitkeep
+output/*
+!output/.gitkeep
 
 # macOS system files
 .DS_Store
