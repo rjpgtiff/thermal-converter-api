@@ -104,9 +104,18 @@ if ($THERMAL_IMAGES.Count -gt 0) {
     $MSG_INDEX = 0
     
     try {
-        # Convert using Invoke-RestMethod
+        # Convert using Invoke-WebRequest with proper file upload
         Write-Host "Processing thermal data..." -ForegroundColor Yellow
-        $response = Invoke-RestMethod -Uri "$API_URL/api/convert-batch" -Method Post -Form $form -OutFile $BATCH_OUTPUT -TimeoutSec 300
+        
+        # Create form data for file upload
+        $form = @{}
+        for ($i = 0; $i -lt $THERMAL_IMAGES.Count; $i++) {
+            $form["file$i"] = Get-Item $THERMAL_IMAGES[$i].FullName
+            $relativePath = $THERMAL_IMAGES[$i].FullName.Substring($INPUT_DIR.Length + 1)
+            $form["relativePath$i"] = $relativePath
+        }
+        
+        $response = Invoke-WebRequest -Uri "$API_URL/api/convert-batch" -Method Post -Form $form -OutFile $BATCH_OUTPUT -TimeoutSec 300
         
         if (Test-Path $BATCH_OUTPUT -and (Get-Item $BATCH_OUTPUT).Length -gt 0) {
             # Extract the zip file to output directory
