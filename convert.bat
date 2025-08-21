@@ -7,5 +7,5 @@ echo.
 echo Converting thermal images...
 echo.
 cd /d "%~dp0"
-bash "convert.sh"
+powershell -ExecutionPolicy Bypass -File "convert.ps1"
 pause
