@@ -81,48 +81,45 @@ if ($THERMAL_IMAGES.Count -gt 0) {
         New-Item -ItemType Directory -Path $OUTPUT_DIR -Force | Out-Null
     }
     
-    # Prepare form data for batch conversion
-    $form = @{}
+    # Prepare multipart form data manually
+    $boundary = [System.Guid]::NewGuid().ToString()
+    $LF = "`r`n"
+    $bodyStream = New-Object System.IO.MemoryStream
+    $writer = New-Object System.IO.StreamWriter($bodyStream)
     for ($i = 0; $i -lt $THERMAL_IMAGES.Count; $i++) {
-        $form["file$i"] = $THERMAL_IMAGES[$i].FullName
-        $relativePath = $THERMAL_IMAGES[$i].FullName.Substring($INPUT_DIR.Length + 1)
-        $form["relativePath$i"] = $relativePath
+        $file = $THERMAL_IMAGES[$i]
+        $relativePath = $file.FullName.Substring($INPUT_DIR.Length + 1)
+        # File part
+        $writer.Write("--$boundary$LF")
+        $writer.Write("Content-Disposition: form-data; name=\"file$i\"; filename=\"$($file.Name)\"$LF")
+        $writer.Write("Content-Type: image/jpeg$LF$LF")
+        $writer.Flush()
+        $bytes = [System.IO.File]::ReadAllBytes($file.FullName)
+        $bodyStream.Write($bytes, 0, $bytes.Length)
+        $writer.Write($LF)
+        $writer.Flush()
+        # Relative path part
+        $writer.Write("--$boundary$LF")
+        $writer.Write("Content-Disposition: form-data; name=\"relativePath$i\"$LF$LF")
+        $writer.Write($relativePath)
+        $writer.Write($LF)
+        $writer.Flush()
     }
+    $writer.Write("--$boundary--$LF")
+    $writer.Flush()
+    $bodyStream.Position = 0
     
-    # Create a temporary directory for batch processing
-    $TEMP_DIR = New-TemporaryFile | ForEach-Object { Remove-Item $_; New-Item -ItemType Directory -Path $_ }
-    $BATCH_OUTPUT = Join-Path $TEMP_DIR "batch_output.zip"
-    
-    # Convert using batch endpoint with timeout to prevent hanging
-    Write-Host "Converting thermal images in batch..." -ForegroundColor Yellow
+    # Set headers
+    $headers = @{ 'Content-Type' = "multipart/form-data; boundary=$boundary" }
     
     # Start timer
     $START_TIME = Get-Date
-    
-    # Show progress messages while waiting
-    $MESSAGES = @("Our servers are working hard...", "Processing thermal data...", "Almost there...", "Just a bit more...")
-    $MSG_INDEX = 0
-    
     try {
-        # Convert using Invoke-WebRequest with proper file upload
         Write-Host "Processing thermal data..." -ForegroundColor Yellow
-        
-        # Create form data for file upload
-        $form = @{}
-        for ($i = 0; $i -lt $THERMAL_IMAGES.Count; $i++) {
-            $form["file$i"] = Get-Item $THERMAL_IMAGES[$i].FullName
-            $relativePath = $THERMAL_IMAGES[$i].FullName.Substring($INPUT_DIR.Length + 1)
-            $form["relativePath$i"] = $relativePath
-        }
-        
-        $response = Invoke-WebRequest -Uri "$API_URL/api/convert-batch" -Method Post -Form $form -OutFile $BATCH_OUTPUT -TimeoutSec 300
-        
+        $response = Invoke-WebRequest -Uri "$API_URL/api/convert-batch" -Method Post -Headers $headers -InFile $bodyStream -OutFile $BATCH_OUTPUT -TimeoutSec 300
         if (Test-Path $BATCH_OUTPUT -and (Get-Item $BATCH_OUTPUT).Length -gt 0) {
-            # Extract the zip file to output directory
             Expand-Archive -Path $BATCH_OUTPUT -DestinationPath $OUTPUT_DIR -Force
             $SUCCESSFUL = $THERMAL_IMAGES.Count
-            
-            # Calculate elapsed time
             $END_TIME = Get-Date
             $ELAPSED_TIME = ($END_TIME - $START_TIME).TotalSeconds
             Write-Host "✅ Batch conversion completed in $([math]::Floor($ELAPSED_TIME / 60))m $([math]::Floor($ELAPSED_TIME % 60))s" -ForegroundColor Green
@@ -137,8 +134,8 @@ if ($THERMAL_IMAGES.Count -gt 0) {
         Write-Host "❌ Batch conversion failed after $([math]::Floor($ELAPSED_TIME / 60))m $([math]::Floor($ELAPSED_TIME % 60))s" -ForegroundColor Red
         Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
     }
-    
-    # Clean up temporary files
+    $writer.Dispose()
+    $bodyStream.Dispose()
     if (Test-Path $BATCH_OUTPUT) { Remove-Item $BATCH_OUTPUT -Force }
     if (Test-Path $TEMP_DIR) { Remove-Item $TEMP_DIR -Recurse -Force }
 }
